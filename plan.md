@@ -1,48 +1,53 @@
-# Plano — Painel Dono / ZAYRON STORE
+# Plano de reconstrução — Painel Dono / ZAYRON STORE
 
-## Escopo desta fase
+## Objetivo
 
-Construir somente o Painel Dono. O Painel Admin e o Snapchat serão fases posteriores. O sistema usará o projeto Firebase `zayron-store`, Firebase Authentication para o único usuário Dono e Firestore para os dados. As operações privilegiadas passarão por backend server-side; a service account nunca será enviada ao navegador, ao GitHub ou ao app iOS.
+Refazer o Painel Dono como um painel operacional real, sem ações simuladas. O Dono é o único proprietário e terá controle total sobre Admins, créditos, keys Snapchat, dispositivos, IPs, pausa global, auditoria e configurações. O Painel Admin e o Snapchat continuam como fases posteriores, mas todas as operações compartilhadas serão modeladas para reutilização.
 
-## Arquitetura
+## Funções obrigatórias do Dono
 
-O frontend será um dashboard web responsivo. O backend será composto por rotas server-side do projeto, com validação de sessão Firebase, verificação explícita do `OWNER_UID`, validação de entrada, rate limiting básico e auditoria. O Firestore será o banco externo e ficará em Production mode. A configuração pública do Firebase ficará em variáveis públicas do frontend; a credencial Admin e o `LICENSE_PEPPER` ficarão somente em Secrets de execução.
+### Acessos Admin
 
-## Modelo de dados inicial
+- Gerar acesso Admin com prefixo configurável, créditos iniciais e limite de dispositivos.
+- Salvar somente hash da key no Firestore e mostrar a key completa apenas na criação.
+- Manter lista persistente com o acesso mais recente no topo.
+- Pesquisar acessos Admin separadamente.
+- Adicionar ou remover qualquer quantidade de créditos.
+- Pausar, retomar, bloquear, desbloquear e excluir acesso Admin.
+- Resetar vínculos de dispositivo do acesso quando necessário.
+- Registrar todas as operações na auditoria.
 
-- `users/{uid}`: papel, status, data de criação e último acesso.
-- `adminAccess/{id}`: hash da key de Admin, status, limite de dispositivos e timestamps.
-- `adminCredits/{adminUid}`: saldo, versão de concorrência e histórico resumido.
-- `licenses/{id}`: hash da key, tipo, dias, expiração, status, criador e limite de dispositivos.
-- `licenseDevices/{licenseId_deviceId}`: vínculo da instalação, primeiro/último uso e metadados mínimos.
-- `blockedDevices/{deviceId}`: bloqueio do identificador de instalação, motivo e autor.
-- `blockedIPs/{ipHash}`: bloqueio opcional por IP, com motivo e status.
-- `auditEvents/{id}`: ator, ação, recurso, resultado e data/hora.
-- `systemFlags/global`: pausa global, manutenção e versão de política.
+### Keys Snapchat
 
-As keys não serão usadas como IDs do Firestore nem armazenadas em texto puro por padrão. A key nasce com status `ready` e `activatedAt` vazio; os dias só começam na primeira ativação válida no Snapchat. Ao pausar uma key, o backend calcula e guarda o saldo restante e interrompe a contagem. Ao retomar, recria `expiresAt` a partir do saldo restante. O reset de dispositivo remove os vínculos de instalação e libera o uso em outro dispositivo, sem alterar `activatedAt`, `expiresAt` ou o saldo de tempo. Geração, ativação, expiração, exclusão, pausa, bloqueio, reset e adição/remoção de dias serão operações server-side e auditadas. A mesma lógica será reutilizada pelo futuro Painel Admin.
+- Gerar key com prefixo configurável, qualquer quantidade de dias e limite de 1 a 10 dispositivos.
+- Salvar a key no Firestore antes de exibi-la na lista; nunca criar IDs `local-*` no frontend.
+- Iniciar a contagem somente no primeiro uso válido do Snapchat.
+- Pausar e retomar congelando o tempo restante.
+- Bloquear, desbloquear, adicionar dias, remover dias e resetar dispositivo sem reiniciar o prazo.
+- Pausar ou retomar todas as keys pela pausa global.
+- Pesquisar por key, status, Admin criador, IP e identificador de instalação.
+- Excluir definitivamente o documento da key e seus vínculos de dispositivo; manter apenas auditoria mínima e fazer a key desaparecer da lista após sucesso.
+- Mostrar a key mais recente primeiro e atualizar a lista depois de cada operação real.
 
-## Telas da primeira versão
+### Dispositivos, IPs e auditoria
 
-1. Login do Dono por e-mail e senha.
-2. Dashboard com resumo de Admins, créditos, keys ativas, keys pausadas e bloqueios.
-3. Lista separada de acessos Admin.
-4. Lista separada de keys do Snapchat, com busca e item mais recente primeiro.
-5. Formulário de geração de acesso Admin: formato, quantidade de dispositivos e créditos.
-6. Formulário de geração de key Snapchat: prefixo, dias livres, limite de dispositivos e quantidade.
-7. Detalhe de key com ações conforme o Dono: pausar, despausar, bloquear, desbloquear, excluir e ajustar dias.
-8. Gestão de dispositivos e IPs, incluindo consulta de keys relacionadas.
-9. Auditoria de ações críticas.
-10. Configurações do Dono e sinalização de manutenção/pausa global.
+- Mostrar vínculos de instalação, quantidade usada, último uso e IP observado quando disponível.
+- Bloquear e desbloquear por identificador de instalação.
+- Bloquear e desbloquear por IP com aviso de que NAT/VPN podem afetar outros usuários.
+- Consultar keys relacionadas ao dispositivo ou IP.
+- Registrar criação, pausa, retomada, bloqueio, desbloqueio, exclusão, reset e alteração de dias/créditos.
+- Não usar IMEI, número de série ou HWID invasivo; o identificador futuro do iPhone será aleatório e guardado no Keychain.
 
-## Design
+## Backend e segurança
 
-Direção escolhida: dashboard clean moderno, com superfícies escuras opcionais, cartões compactos e hierarquia forte. O topo exibirá `LN XITER`. O layout priorizará navegação lateral no desktop e navegação inferior/compacta no celular. Cores de status serão semânticas: vermelho para bloqueado, âmbar para pausado, verde para ativo e azul para informação. O visual não usará neon excessivo no painel de gestão para preservar legibilidade e reduzir erros operacionais.
+Todas as operações passam por rotas server-side, validam o Firebase ID token e o `OWNER_UID`, validam os dados recebidos e não confiam em estado ou permissões do frontend. O frontend usa apenas configuração pública do Firebase Web SDK. A service account, pepper e dados sensíveis permanecem nas variáveis protegidas da Vercel. As Firestore Rules permanecem deny-by-default porque o backend Admin é o único escritor.
 
-## Fluxo de entrega
+## Estrutura
 
-Primeiro será criada a base do projeto, autenticação visual e shell do dashboard sem dados reais. Depois serão adicionadas as rotas server-side e o modelo Firestore. Em seguida, as operações de geração e gestão serão conectadas com transações e auditoria. Por fim, serão configuradas variáveis públicas, Secrets da Vercel, regras e testes de autorização. O Admin não será iniciado antes de o Dono funcionar.
-
-## Segurança
-
-O frontend nunca decidirá se o usuário é Dono. Cada operação verificará a sessão e o UID no backend. As regras do Firestore serão restritivas. Logs não conterão senha, service account, private key, key em texto puro ou `LICENSE_PEPPER`. O IP será tratado como dado auxiliar e o identificador de instalação será aleatório, não um HWID físico do iPhone.
+- `src/App.tsx`: shell, telas e botões conectados às ações reais.
+- `src/api.ts`: cliente autenticado e tratamento de erros.
+- `src/types.ts`: contratos das entidades e status.
+- `api/owner/action.ts`: mutations do Dono, transações, auditoria e exclusões.
+- `api/owner/dashboard.ts`: consultas reais, listas, vínculos e auditoria.
+- `api/license/activate.ts`: primeiro uso, expiração, pausa global e vínculo de instalação.
+- `firestore.rules`: acesso direto negado ao cliente.

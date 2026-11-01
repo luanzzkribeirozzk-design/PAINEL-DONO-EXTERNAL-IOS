@@ -1,57 +1,44 @@
-# Entregas — Painel Dono
+# Entregas — Reconstrução completa do Painel Dono
 
-## Fundação segura do projeto
+## Backend real e autorização
 
-- [x] Criar a estrutura web responsiva do Painel Dono com o nome `LN XITER` no topo.
-- [x] Configurar o projeto para usar o Firebase `zayron-store` sem incluir credenciais privadas no código.
-- [x] Configurar autenticação por e-mail e senha para o único usuário Dono.
-- [x] Validar o `OWNER_UID` no backend em toda operação privilegiada.
-- [x] Criar rotas server-side com validação de entrada e respostas sem dados secretos.
-
-## Dados e autorização
-
-- [ ] Criar o modelo Firestore para acessos Admin, créditos, licenses/keys, dispositivos, bloqueios, flags globais e auditoria.
-- [ ] Manter keys em listas organizadas, com a última gerada primeiro.
-- [ ] Separar visualmente e por consulta as keys de Admin e as keys do Snapchat.
-- [ ] Aplicar autorização deny-by-default e impedir acesso de Admin às operações do Dono.
-- [ ] Registrar ações críticas sem armazenar senha, private key ou key em texto puro desnecessariamente.
+- [ ] Toda operação privilegiada valida o Firebase ID token e o `OWNER_UID` no backend; o frontend não decide permissões.
+- [ ] Nenhuma operação usa IDs temporários `local-*`; geração, atualização e exclusão usam documentos reais do Firestore.
+- [ ] As respostas não expõem service account, private key, pepper ou key completa depois da criação.
+- [ ] As Firestore Rules permanecem deny-by-default para acesso direto do cliente, enquanto o backend Admin executa as operações autorizadas.
 
 ## Acessos Admin
 
-- [ ] Permitir gerar acesso para o Painel Admin.
-- [ ] Permitir definir o limite de dispositivos no momento da geração.
-- [ ] Permitir adicionar ou remover qualquer quantidade de créditos.
-- [ ] Permitir bloquear, desbloquear ou excluir acesso Admin.
-- [ ] Permitir bloquear acesso Admin por identificador seguro de instalação.
-- [ ] Exibir busca e lista separada de acessos Admin.
+- [ ] Gerar acesso Admin com prefixo configurável, créditos iniciais e limite de dispositivos.
+- [ ] Mostrar a key completa somente no momento da criação e manter somente hash/preview persistente.
+- [ ] Exibir lista separada e persistente, com o acesso mais recente primeiro e busca própria.
+- [ ] Adicionar e remover qualquer quantidade de créditos.
+- [ ] Pausar, retomar, bloquear, desbloquear e excluir acesso Admin.
+- [ ] Registrar geração, alteração de créditos, pausa, bloqueio, desbloqueio e exclusão na auditoria.
 
 ## Keys Snapchat
 
-- [x] Criar keys com status `ready`, sem iniciar a contagem de dias na geração.
-- [x] Iniciar a validade somente na primeira utilização válida no Snapchat, independentemente de a key ter sido criada pelo Dono ou Admin.
-- [x] Congelar o tempo restante quando o Dono ou Admin pausar uma key e continuar a partir do mesmo saldo ao retomar.
-- [x] Adicionar botão de reset de dispositivo no Dono e reutilizar a mesma operação no futuro Admin; o reset libera outro dispositivo sem reiniciar o prazo.
-- [ ] Permitir gerar keys com quantidade livre de dias e limite de dispositivos.
-- [ ] Permitir prefixo configurável, com padrão `EXTERNAL`.
-- [ ] Permitir pausar, despausar, bloquear, desbloquear e excluir keys.
-- [ ] Permitir adicionar/remover dias de uma key.
-- [ ] Permitir adicionar/remover dias de todas as keys.
-- [ ] Permitir pausa global durante atualização.
-- [ ] Mostrar o Admin que criou cada key.
-- [ ] Permitir pesquisa por key, status, Admin, IP e identificador de instalação.
+- [ ] Gerar keys com prefixo configurável, qualquer quantidade de dias e limite de 1 a 10 dispositivos.
+- [ ] Salvar no Firestore antes de mostrar na lista e iniciar com status `ready`.
+- [ ] Começar a contagem no primeiro uso válido, independentemente de quem criou a key.
+- [ ] Pausar e retomar congelando o saldo de tempo.
+- [ ] Bloquear, desbloquear, adicionar dias, remover dias e resetar dispositivo sem reiniciar o prazo.
+- [ ] Aplicar pausa global para interromper o acesso Snapchat durante atualização.
+- [ ] Pesquisar por key, status, Admin criador, IP e identificador de instalação.
+- [ ] Excluir definitivamente a key, remover seus vínculos e fazê-la desaparecer da lista, preservando apenas auditoria mínima.
+- [ ] Atualizar a lista real depois de cada ação e ordenar a criação mais recente primeiro.
 
-## Dispositivos e auditoria
+## Dispositivos e IPs
 
-- [ ] Mostrar identificador de instalação associado à licença.
-- [ ] Mostrar IP observado com data/hora, tratando-o como sinal auxiliar.
-- [ ] Permitir ao Dono bloquear/desbloquear por identificador de instalação.
-- [ ] Permitir ao Dono bloquear/desbloquear por IP com confirmação e auditoria.
-- [ ] Permitir consultar keys relacionadas a IP ou identificador.
-- [ ] Registrar criação, pausa, bloqueio, desbloqueio, exclusão e ajustes de dias.
+- [ ] Listar instalações vinculadas, limite, quantidade usada, último uso e IP observado.
+- [ ] Bloquear e desbloquear por identificador de instalação.
+- [ ] Bloquear e desbloquear por IP com aviso sobre NAT/VPN.
+- [ ] Consultar keys relacionadas a dispositivo ou IP.
+- [ ] Resetar os vínculos de uma key e liberar outro dispositivo sem alterar validade.
 
-## Não iniciar nesta fase
+## Auditoria e configurações
 
-- [ ] Painel Admin separado.
-- [ ] Login por key no Snapchat.
-- [ ] App Check/App Attest na IPA.
-- [ ] Integração do `GoogleService-Info.plist` no app.
+- [ ] Registrar criação, primeiro uso, pausa, retomada, bloqueio, desbloqueio, exclusão, reset e ajustes de dias/créditos.
+- [ ] Mostrar auditoria ordenada por evento mais recente.
+- [ ] Mostrar estado de conexão Firebase, projeto, plano Spark e pausa global.
+- [ ] Manter as telas Admin e Snapchat como fases posteriores, sem misturar permissões.

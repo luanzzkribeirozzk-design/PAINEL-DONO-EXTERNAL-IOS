@@ -7,7 +7,11 @@ type NextApiResponse = { setHeader: (name: string, value: string) => void; statu
 
 type Payload = Record<string, unknown>
 
-const hashKey = (value: string) => createHash('sha256').update(`${process.env.LICENSE_PEPPER ?? 'configure-me'}:${value}`).digest('hex')
+const hashKey = (value: string) => {
+  const pepper = process.env.LICENSE_PEPPER
+  if (!pepper) throw new Error('LICENSE_PEPPER_NOT_CONFIGURED')
+  return createHash('sha256').update(`${pepper}:${value}`).digest('hex')
+}
 const hashIP = (value: string) => createHash('sha256').update(`ip:${value}`).digest('hex')
 const makeKey = (prefix: string) => `${prefix.replace(/[^A-Z0-9-]/gi, '').toUpperCase() || 'EXTERNAL'}-${randomBytes(6).toString('hex').toUpperCase()}`
 const parseBody = (body: unknown): { action?: string; payload: Payload } => {
@@ -38,8 +42,39 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const current = await ref.get()
       const next = !Boolean(current.data()?.globalPaused)
       await ref.set({ globalPaused: next, updatedAt: now, updatedBy: actor.uid }, { merge: true })
+      const active = await db.collection('licenses').where('status', '==', next ? 'active' : 'paused').limit(500).get()
+      const batch = db.batch()
+      active.docs.forEach(item => {
+        const data = item.data()
+        if (next) {
+          const remaining = data.expiresAt?.toMillis ? Math.max(0, data.expiresAt.toMillis() - now.toMillis()) : null
+          batch.update(item.ref, { status: 'paused', pauseReason: 'global', pausedAt: now, pausedRemainingMs: remaining, updatedAt: now })
+        } else if (data.pauseReason === 'global') {
+          const remaining = Number(data.pausedRemainingMs ?? 0)
+          batch.update(item.ref, remaining > 0 ? { status: 'active', pauseReason: null, pausedAt: null, pausedRemainingMs: null, expiresAt: Timestamp.fromMillis(now.toMillis() + remaining), updatedAt: now } : { status: 'expired', pauseReason: null, pausedAt: null, pausedRemainingMs: null, updatedAt: now })
+        }
+      })
+      if (active.size) await batch.commit()
       await audit('systemFlags/global')
       return json(res, 200, { ok: true, globalPaused: next })
+    }
+
+    if (action === 'addDaysAll' || action === 'removeDaysAll') {
+      const amount = Math.max(1, Math.abs(Number(payload.days ?? payload.amount ?? 0)))
+      const direction = action === 'addDaysAll' ? 1 : -1
+      const licenses = await db.collection('licenses').where('status', 'in', ['ready', 'active', 'paused']).limit(500).get()
+      const batch = db.batch()
+      licenses.docs.forEach(item => {
+        const data = item.data()
+        const updates: Record<string, unknown> = { durationDays: Math.max(1, Number(data.durationDays ?? 1) + direction * amount), updatedAt: now }
+        const delta = direction * amount * 86400000
+        if (data.status === 'active' && data.expiresAt?.toMillis) updates.expiresAt = Timestamp.fromMillis(Math.max(now.toMillis(), data.expiresAt.toMillis() + delta))
+        if (data.status === 'paused' && data.pausedRemainingMs != null) updates.pausedRemainingMs = Math.max(0, Number(data.pausedRemainingMs) + delta)
+        batch.update(item.ref, updates)
+      })
+      if (licenses.size) await batch.commit()
+      await audit('licenses/all')
+      return json(res, 200, { ok: true, count: licenses.size })
     }
 
     if (action === 'generateAdmin' || action === 'generateLicense') {
@@ -95,8 +130,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         }
       })
     } else if (action === 'blockLicense' || action === 'unblockLicense') {
-      await requireDocument(ref)
-      await ref.update({ status: action === 'blockLicense' ? 'blocked' : 'ready', blockedAt: action === 'blockLicense' ? now : null, updatedAt: now })
+      const snapshot = await requireDocument(ref)
+      const item = snapshot.data() ?? {}
+      await ref.update(action === 'blockLicense'
+        ? { status: 'blocked', blockedFromStatus: item.status ?? 'ready', blockedAt: now, updatedAt: now }
+        : { status: item.blockedFromStatus ?? 'ready', blockedFromStatus: FieldValue.delete(), blockedAt: null, updatedAt: now })
     } else if (action === 'deleteLicense') {
       await requireDocument(ref)
       const bindings = await db.collection('licenseDevices').where('licenseId', '==', id).get()
@@ -129,8 +167,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await requireDocument(ref)
       await ref.update({ status: action === 'pauseAdmin' ? 'paused' : 'active', updatedAt: now })
     } else if (action === 'blockAdmin' || action === 'unblockAdmin') {
-      await requireDocument(ref)
-      await ref.update({ status: action === 'blockAdmin' ? 'blocked' : 'active', blockedAt: action === 'blockAdmin' ? now : null, updatedAt: now })
+      const snapshot = await requireDocument(ref)
+      const item = snapshot.data() ?? {}
+      await ref.update(action === 'blockAdmin'
+        ? { status: 'blocked', blockedFromStatus: item.status ?? 'active', blockedAt: now, updatedAt: now }
+        : { status: item.blockedFromStatus ?? 'active', blockedFromStatus: FieldValue.delete(), blockedAt: null, updatedAt: now })
     } else if (action === 'deleteAdmin') {
       await requireDocument(ref)
       await audit(id, 'deleted')
@@ -142,8 +183,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await ref.update({ credits: FieldValue.increment((action === 'addCredits' ? 1 : -1) * amount), updatedAt: now })
     } else if (action === 'blockDevice' || action === 'unblockDevice') {
       const deviceId = String(payload.deviceId ?? '')
-      if (!deviceId) return json(res, 400, { error: 'DISPOSITIVO_OBRIGATÓRIO' })
-      const deviceHash = createHash('sha256').update(`device:${deviceId}`).digest('hex')
+      const deviceHash = String(payload.deviceHash ?? (deviceId ? createHash('sha256').update(`device:${deviceId}`).digest('hex') : ''))
+      if (!deviceHash) return json(res, 400, { error: 'DISPOSITIVO_OBRIGATÓRIO' })
       const deviceRef = db.collection('blockedDevices').doc(deviceHash)
       if (action === 'blockDevice') await deviceRef.set({ deviceHash, reason: 'Bloqueado pelo Dono', createdBy: actor.uid, createdAt: now, status: 'blocked' })
       else await deviceRef.delete()

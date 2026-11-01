@@ -24,7 +24,11 @@ export interface SnapchatKey {
   createdAt: string
   activatedAt?: string
   pausedRemainingMs?: number
+  lastUsedAt?: string
+  devicePreview?: string
+  deviceBlocked?: boolean
   ip?: string
+  ipBlocked?: boolean
   deviceId?: string
 }
 
