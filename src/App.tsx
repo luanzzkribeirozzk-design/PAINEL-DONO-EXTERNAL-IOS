@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { browserLocalPersistence, browserSessionPersistence, onAuthStateChanged, setPersistence, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
-import { Activity, Ban, BarChart3, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Copy, Database, KeyRound, LayoutDashboard, LogOut, Menu, Pause, Plus, RefreshCw, Search, Settings, ShieldCheck, Smartphone, Trash2, UserRound, Users, X, Zap } from 'lucide-react'
+import { Activity, Ban, BarChart3, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Copy, Database, KeyRound, LayoutDashboard, LogOut, Menu, Minus, Pause, Plus, RefreshCw, Search, Settings, ShieldCheck, Smartphone, Trash2, UserRound, Users, X, Zap } from 'lucide-react'
 import { auth, firebaseConfigured } from './firebase'
 import { fetchDashboard, runOwnerAction } from './api'
 import type { AdminAccess, DashboardData, SnapchatKey, Status } from './types'
@@ -94,7 +94,7 @@ function App() {
       <header className="topbar"><button className="icon-button mobile-menu" onClick={() => setMobileNav(true)}><Menu size={20} /></button><div className="breadcrumb"><span>ZAYRON STORE</span><ChevronRight size={15} /><b>{pageMeta[page].label}</b></div><div className="top-actions"><InstallButton /><div className="live-dot"><i /> Sistema online</div><button className="icon-button"><RefreshCw size={17} /></button><div className="top-avatar">D</div></div></header>
       <section className="page-content"><div className="page-intro"><div><p className="eyebrow">CONTROLE CENTRAL</p><h1>{pageMeta[page].label}</h1><p className="muted">Gerencie acessos, keys e proteção do ecossistema.</p></div>{page === 'overview' && <button className="primary-button" onClick={() => setModal('license')}><Plus size={17} /> Gerar key</button>}{page === 'admins' && <button className="primary-button" onClick={() => setModal('admin')}><Plus size={17} /> Novo acesso</button>}{page === 'licenses' && <button className="primary-button" onClick={() => setModal('license')}><Plus size={17} /> Gerar key</button>}</div>
         {page === 'overview' && <Overview data={data} activeAdmins={activeAdmins} activeLicenses={activeLicenses} onGlobal={() => perform('toggleGlobal', {})} onPage={setPage} />}
-        {page === 'admins' && <AdminPage items={filteredAdmins} onAction={perform} />}
+        {page === 'admins' && <AdminPage items={filteredAdmins} query={query} setQuery={setQuery} onAction={perform} />}
         {page === 'licenses' && <LicensePage items={filteredLicenses} query={query} setQuery={setQuery} onAction={perform} />}
         {page === 'devices' && <DevicesPage data={data} onAction={perform} />}
         {page === 'audit' && <AuditPage data={data} />}
