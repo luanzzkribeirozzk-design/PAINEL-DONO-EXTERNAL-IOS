@@ -51,3 +51,5 @@ O painel possui manifesto e service worker PWA. Em navegadores Android compatív
 ## Ciclo de vida das keys
 
 Uma key Snapchat recém-gerada fica `ready` e não consome dias. A rota `api/license/activate` inicia o prazo somente no primeiro uso válido, vincula o dispositivo dentro do limite e calcula a expiração. A pausa calcula e guarda o saldo restante; a retomada usa esse saldo e não o relógio original. O reset do Dono remove os vínculos de dispositivo e mantém todo o prazo já consumido. O futuro Painel Admin deve chamar as mesmas operações autorizadas, sem duplicar a regra.
+
+Deploy da Vercel: commits usam o e-mail noreply verificado do GitHub.
