@@ -5,41 +5,86 @@ import { db, FieldValue, json, requireOwner } from '../_lib/firebaseAdmin.js'
 type NextApiRequest = { method?: string; headers: Record<string, string | string[] | undefined>; body: unknown }
 type NextApiResponse = { setHeader: (name: string, value: string) => void; status: (code: number) => { json: (body: unknown) => void } }
 
+type Payload = Record<string, unknown>
+
 const hashKey = (value: string) => createHash('sha256').update(`${process.env.LICENSE_PEPPER ?? 'configure-me'}:${value}`).digest('hex')
-const makeKey = (prefix: string) => `${prefix.replace(/[^A-Z0-9-]/gi, '').toUpperCase()}-${randomBytes(6).toString('hex').toUpperCase()}`
+const hashIP = (value: string) => createHash('sha256').update(`ip:${value}`).digest('hex')
+const makeKey = (prefix: string) => `${prefix.replace(/[^A-Z0-9-]/gi, '').toUpperCase() || 'EXTERNAL'}-${randomBytes(6).toString('hex').toUpperCase()}`
+const parseBody = (body: unknown): { action?: string; payload: Payload } => {
+  const parsed = typeof body === 'string' ? JSON.parse(body) : body
+  if (!parsed || typeof parsed !== 'object') return { payload: {} }
+  const value = parsed as { action?: unknown; payload?: unknown }
+  return { action: typeof value.action === 'string' ? value.action : undefined, payload: value.payload && typeof value.payload === 'object' ? value.payload as Payload : {} }
+}
+
+async function requireDocument(ref: FirebaseFirestore.DocumentReference) {
+  const snapshot = await ref.get()
+  if (!snapshot.exists) throw new Error('NOT_FOUND')
+  return snapshot
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
-  if (req.method !== 'POST') return json(res, 405, { error: 'Método não permitido.' })
+  if (req.method !== 'POST') return json(res, 405, { error: 'MÉTODO_NÃO_PERMITIDO' })
   try {
     const actor = await requireOwner(req)
     if (!db) throw new Error('BACKEND_NOT_CONFIGURED')
-    const parsedBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body && typeof req.body === 'object' ? req.body : {})
-    const { action, payload = {} } = parsedBody as { action?: string; payload?: Record<string, unknown> }
+    const { action, payload } = parseBody(req.body)
+    if (!action) return json(res, 400, { error: 'AÇÃO_OBRIGATÓRIA' })
     const now = Timestamp.now()
     const audit = (target: string, result = 'success') => db!.collection('auditEvents').add({ action, actor: actor.uid, target, result, createdAt: FieldValue.serverTimestamp() })
+
     if (action === 'toggleGlobal') {
       const ref = db.collection('systemFlags').doc('global')
       const current = await ref.get()
-      await ref.set({ globalPaused: !Boolean(current.data()?.globalPaused), updatedAt: now }, { merge: true })
+      const next = !Boolean(current.data()?.globalPaused)
+      await ref.set({ globalPaused: next, updatedAt: now, updatedBy: actor.uid }, { merge: true })
       await audit('systemFlags/global')
-      return json(res, 200, { ok: true })
+      return json(res, 200, { ok: true, globalPaused: next })
     }
+
     if (action === 'generateAdmin' || action === 'generateLicense') {
-      const rawKey = makeKey(String(payload.prefix ?? (action === 'generateAdmin' ? 'ADMIN' : 'EXTERNAL')))
+      const collection = action === 'generateAdmin' ? 'adminAccess' : 'licenses'
+      const prefix = String(payload.prefix ?? (action === 'generateAdmin' ? 'KEY' : 'EXTERNAL'))
+      let rawKey = ''
+      let keyHash = ''
+      let ref: FirebaseFirestore.DocumentReference | undefined
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        rawKey = makeKey(prefix)
+        keyHash = hashKey(rawKey)
+        const existing = await db.collection(collection).where('keyHash', '==', keyHash).limit(1).get()
+        if (existing.empty) { ref = db.collection(collection).doc(); break }
+      }
+      if (!ref) throw new Error('KEY_COLLISION')
       const isAdmin = action === 'generateAdmin'
-      const ref = await db.collection(isAdmin ? 'adminAccess' : 'licenses').add({ keyHash: hashKey(rawKey), keyPreview: `${rawKey.slice(0, 6)}•••${rawKey.slice(-4)}`, createdBy: actor.uid, status: isAdmin ? 'active' : 'ready', credits: isAdmin ? Number(payload.credits ?? 0) : 0, durationDays: Number(payload.days ?? 30), devices: Number(payload.devices ?? 1), devicesUsed: 0, activatedAt: null, expiresAt: null, pausedRemainingMs: null, createdAt: now })
+      await ref.set({
+        keyHash,
+        keyPreview: `${rawKey.slice(0, 6)}•••${rawKey.slice(-4)}`,
+        createdBy: actor.uid,
+        status: isAdmin ? 'active' : 'ready',
+        credits: isAdmin ? Math.max(0, Number(payload.credits ?? 0)) : 0,
+        durationDays: Math.max(1, Number(payload.days ?? 30)),
+        devices: Math.min(10, Math.max(1, Number(payload.devices ?? 1))),
+        devicesUsed: 0,
+        activatedAt: null,
+        expiresAt: null,
+        pausedRemainingMs: null,
+        createdAt: now,
+      })
       await audit(ref.id)
       return json(res, 200, { ok: true, key: rawKey, id: ref.id })
     }
+
     const id = String(payload.id ?? '')
-    if (!id) return json(res, 400, { error: 'ID obrigatório.' })
-    const isAdminAction = ['pauseAdmin', 'unpauseAdmin', 'deleteAdmin', 'addCredits'].includes(action ?? '')
-    const collection = isAdminAction ? 'adminAccess' : 'licenses'
+    if (!id) return json(res, 400, { error: 'ID_OBRIGATÓRIO' })
+    const adminActions = new Set(['pauseAdmin', 'unpauseAdmin', 'blockAdmin', 'unblockAdmin', 'deleteAdmin', 'addCredits', 'removeCredits'])
+    const collection = adminActions.has(action) ? 'adminAccess' : 'licenses'
     const ref = db.collection(collection).doc(id)
+
     if (action === 'pauseLicense' || action === 'unpauseLicense') {
       await db.runTransaction(async transaction => {
-        const snap = await transaction.get(ref)
-        const item = snap.data() ?? {}
+        const snapshot = await transaction.get(ref)
+        if (!snapshot.exists) throw new Error('NOT_FOUND')
+        const item = snapshot.data() ?? {}
         if (action === 'pauseLicense') {
           const remaining = item.status === 'active' && item.expiresAt?.toMillis ? Math.max(0, item.expiresAt.toMillis() - now.toMillis()) : null
           transaction.update(ref, { status: 'paused', pausedAt: now, pausedRemainingMs: remaining, updatedAt: now })
@@ -49,22 +94,75 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
           else transaction.update(ref, { status: item.activatedAt ? 'expired' : 'ready', pausedAt: null, pausedRemainingMs: null, updatedAt: now })
         }
       })
+    } else if (action === 'blockLicense' || action === 'unblockLicense') {
+      await requireDocument(ref)
+      await ref.update({ status: action === 'blockLicense' ? 'blocked' : 'ready', blockedAt: action === 'blockLicense' ? now : null, updatedAt: now })
+    } else if (action === 'deleteLicense') {
+      await requireDocument(ref)
+      const bindings = await db.collection('licenseDevices').where('licenseId', '==', id).get()
+      await audit(id, 'deleted')
+      const batch = db.batch()
+      bindings.docs.forEach(binding => batch.delete(binding.ref))
+      batch.delete(ref)
+      await batch.commit()
+      return json(res, 200, { ok: true, deleted: true, id })
+    } else if (action === 'addDays' || action === 'removeDays') {
+      const amount = Math.max(1, Math.abs(Number(payload.days ?? payload.amount ?? 0)))
+      const delta = (action === 'addDays' ? 1 : -1) * amount * 86400000
+      await db.runTransaction(async transaction => {
+        const snapshot = await transaction.get(ref)
+        if (!snapshot.exists) throw new Error('NOT_FOUND')
+        const item = snapshot.data() ?? {}
+        const updates: Record<string, unknown> = { durationDays: Math.max(1, Number(item.durationDays ?? 1) + (action === 'addDays' ? amount : -amount)), updatedAt: now }
+        if (item.status === 'active' && item.expiresAt?.toMillis) updates.expiresAt = Timestamp.fromMillis(Math.max(now.toMillis(), item.expiresAt.toMillis() + delta))
+        if (item.status === 'paused' && item.pausedRemainingMs != null) updates.pausedRemainingMs = Math.max(0, Number(item.pausedRemainingMs) + delta)
+        transaction.update(ref, updates)
+      })
     } else if (action === 'resetDevice') {
+      await requireDocument(ref)
       const bindings = await db.collection('licenseDevices').where('licenseId', '==', id).get()
       const batch = db.batch()
       bindings.docs.forEach(binding => batch.delete(binding.ref))
       batch.update(ref, { devicesUsed: 0, deviceResetAt: now, updatedAt: now })
       await batch.commit()
-    } else if (action === 'pauseAdmin' || action === 'unpauseAdmin') await ref.update({ status: action === 'pauseAdmin' ? 'paused' : 'active', updatedAt: now })
-    else if (action === 'deleteAdmin' || action === 'deleteLicense') await ref.update({ status: 'deleted', deletedAt: now, updatedAt: now })
-    else if (action === 'addCredits') await ref.update({ credits: FieldValue.increment(Number(payload.amount ?? 0)), updatedAt: now })
-    else if (action === 'blockDevice') await db.collection('blockedDevices').doc(String(payload.deviceId)).set({ reason: 'Bloqueado pelo Dono', createdBy: actor.uid, createdAt: now })
-    else return json(res, 400, { error: 'Ação desconhecida.' })
+    } else if (action === 'pauseAdmin' || action === 'unpauseAdmin') {
+      await requireDocument(ref)
+      await ref.update({ status: action === 'pauseAdmin' ? 'paused' : 'active', updatedAt: now })
+    } else if (action === 'blockAdmin' || action === 'unblockAdmin') {
+      await requireDocument(ref)
+      await ref.update({ status: action === 'blockAdmin' ? 'blocked' : 'active', blockedAt: action === 'blockAdmin' ? now : null, updatedAt: now })
+    } else if (action === 'deleteAdmin') {
+      await requireDocument(ref)
+      await audit(id, 'deleted')
+      await ref.delete()
+      return json(res, 200, { ok: true, deleted: true, id })
+    } else if (action === 'addCredits' || action === 'removeCredits') {
+      await requireDocument(ref)
+      const amount = Math.max(1, Math.abs(Number(payload.amount ?? 0)))
+      await ref.update({ credits: FieldValue.increment((action === 'addCredits' ? 1 : -1) * amount), updatedAt: now })
+    } else if (action === 'blockDevice' || action === 'unblockDevice') {
+      const deviceId = String(payload.deviceId ?? '')
+      if (!deviceId) return json(res, 400, { error: 'DISPOSITIVO_OBRIGATÓRIO' })
+      const deviceHash = createHash('sha256').update(`device:${deviceId}`).digest('hex')
+      const deviceRef = db.collection('blockedDevices').doc(deviceHash)
+      if (action === 'blockDevice') await deviceRef.set({ deviceHash, reason: 'Bloqueado pelo Dono', createdBy: actor.uid, createdAt: now, status: 'blocked' })
+      else await deviceRef.delete()
+    } else if (action === 'blockIP' || action === 'unblockIP') {
+      const ip = String(payload.ip ?? '')
+      if (!ip) return json(res, 400, { error: 'IP_OBRIGATÓRIO' })
+      const ipRef = db.collection('blockedIPs').doc(hashIP(ip))
+      if (action === 'blockIP') await ipRef.set({ ipHash: hashIP(ip), reason: 'Bloqueado pelo Dono', createdBy: actor.uid, createdAt: now, status: 'blocked' })
+      else await ipRef.delete()
+    } else {
+      return json(res, 400, { error: 'AÇÃO_DESCONHECIDA' })
+    }
+
     await audit(id)
-    return json(res, 200, { ok: true })
+    return json(res, 200, { ok: true, id })
   } catch (error) {
     const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
     console.error('owner_action_failed', code)
-    return json(res, code === 'FORBIDDEN' ? 403 : code === 'UNAUTHORIZED' ? 401 : 500, { error: code })
+    const status = code === 'FORBIDDEN' ? 403 : code === 'UNAUTHORIZED' ? 401 : code === 'NOT_FOUND' ? 404 : 500
+    return json(res, status, { error: code })
   }
 }
