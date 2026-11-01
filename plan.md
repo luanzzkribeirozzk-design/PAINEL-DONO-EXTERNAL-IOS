@@ -20,7 +20,7 @@ O frontend será um dashboard web responsivo. O backend será composto por rotas
 - `auditEvents/{id}`: ator, ação, recurso, resultado e data/hora.
 - `systemFlags/global`: pausa global, manutenção e versão de política.
 
-As keys não serão usadas como IDs do Firestore nem armazenadas em texto puro por padrão. Geração, hash, expiração, exclusão, pausa, bloqueio e adição/remoção de dias serão operações server-side e auditadas.
+As keys não serão usadas como IDs do Firestore nem armazenadas em texto puro por padrão. A key nasce com status `ready` e `activatedAt` vazio; os dias só começam na primeira ativação válida no Snapchat. Ao pausar uma key, o backend calcula e guarda o saldo restante e interrompe a contagem. Ao retomar, recria `expiresAt` a partir do saldo restante. O reset de dispositivo remove os vínculos de instalação e libera o uso em outro dispositivo, sem alterar `activatedAt`, `expiresAt` ou o saldo de tempo. Geração, ativação, expiração, exclusão, pausa, bloqueio, reset e adição/remoção de dias serão operações server-side e auditadas. A mesma lógica será reutilizada pelo futuro Painel Admin.
 
 ## Telas da primeira versão
 

@@ -1,4 +1,4 @@
-export type Status = 'active' | 'paused' | 'blocked' | 'expired' | 'deleted'
+export type Status = 'ready' | 'active' | 'paused' | 'blocked' | 'expired' | 'deleted'
 export type KeyKind = 'admin' | 'snapchat'
 
 export interface AdminAccess {
@@ -20,8 +20,10 @@ export interface SnapchatKey {
   devices: number
   devicesUsed: number
   status: Status
-  expiresAt: string
+  expiresAt: string | null
   createdAt: string
+  activatedAt?: string
+  pausedRemainingMs?: number
   ip?: string
   deviceId?: string
 }

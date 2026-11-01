@@ -27,6 +27,10 @@
 
 ## Keys Snapchat
 
+- [x] Criar keys com status `ready`, sem iniciar a contagem de dias na geração.
+- [x] Iniciar a validade somente na primeira utilização válida no Snapchat, independentemente de a key ter sido criada pelo Dono ou Admin.
+- [x] Congelar o tempo restante quando o Dono ou Admin pausar uma key e continuar a partir do mesmo saldo ao retomar.
+- [x] Adicionar botão de reset de dispositivo no Dono e reutilizar a mesma operação no futuro Admin; o reset libera outro dispositivo sem reiniciar o prazo.
 - [ ] Permitir gerar keys com quantidade livre de dias e limite de dispositivos.
 - [ ] Permitir prefixo configurável, com padrão `EXTERNAL`.
 - [ ] Permitir pausar, despausar, bloquear, desbloquear e excluir keys.

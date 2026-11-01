@@ -1,7 +1,9 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // O painel usa Firebase Admin no backend. O cliente não acessa coleções diretamente.
+    // O painel e o Snapchat usam APIs server-side. O cliente não acessa coleções diretamente.
+    // A contagem no primeiro uso, pausa congelada e reset são transações do backend Admin SDK.
+    // O Admin SDK não é limitado por estas regras; por isso cada rota valida autenticação e papel.
     match /{document=**} {
       allow read, write: if false;
     }
