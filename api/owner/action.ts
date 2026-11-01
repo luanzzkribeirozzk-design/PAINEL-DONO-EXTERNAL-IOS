@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { Timestamp } from 'firebase-admin/firestore'
-import { db, FieldValue, json, requireOwner } from '../_lib/firebaseAdmin'
+import { db, FieldValue, json, requireOwner } from '../_lib/firebaseAdmin.js'
 
 type NextApiRequest = { method?: string; headers: Record<string, string | string[] | undefined>; body: unknown }
 type NextApiResponse = { setHeader: (name: string, value: string) => void; status: (code: number) => { json: (body: unknown) => void } }

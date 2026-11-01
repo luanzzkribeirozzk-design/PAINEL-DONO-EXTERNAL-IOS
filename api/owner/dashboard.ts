@@ -1,4 +1,4 @@
-import { db, json, requireOwner } from '../_lib/firebaseAdmin'
+import { db, json, requireOwner } from '../_lib/firebaseAdmin.js'
 import { Timestamp } from 'firebase-admin/firestore'
 
 type NextApiRequest = { method?: string; headers: Record<string, string | string[] | undefined> }

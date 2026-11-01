@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { db, FieldValue, json } from '../_lib/firebaseAdmin'
+import { db, FieldValue, json } from '../_lib/firebaseAdmin.js'
 import { Timestamp } from 'firebase-admin/firestore'
 
 type Request = { method?: string; body: unknown }
