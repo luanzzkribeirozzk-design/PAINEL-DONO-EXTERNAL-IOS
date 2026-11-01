@@ -1,0 +1,9 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // O painel usa Firebase Admin no backend. O cliente não acessa coleções diretamente.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

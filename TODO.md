@@ -2,11 +2,11 @@
 
 ## Fundação segura do projeto
 
-- [ ] Criar a estrutura web responsiva do Painel Dono com o nome `LN XITER` no topo.
-- [ ] Configurar o projeto para usar o Firebase `zayron-store` sem incluir credenciais privadas no código.
-- [ ] Configurar autenticação por e-mail e senha para o único usuário Dono.
-- [ ] Validar o `OWNER_UID` no backend em toda operação privilegiada.
-- [ ] Criar rotas server-side com validação de entrada e respostas sem dados secretos.
+- [x] Criar a estrutura web responsiva do Painel Dono com o nome `LN XITER` no topo.
+- [x] Configurar o projeto para usar o Firebase `zayron-store` sem incluir credenciais privadas no código.
+- [x] Configurar autenticação por e-mail e senha para o único usuário Dono.
+- [x] Validar o `OWNER_UID` no backend em toda operação privilegiada.
+- [x] Criar rotas server-side com validação de entrada e respostas sem dados secretos.
 
 ## Dados e autorização
 

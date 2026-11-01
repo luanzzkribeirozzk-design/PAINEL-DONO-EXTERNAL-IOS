@@ -1,0 +1,44 @@
+export type Status = 'active' | 'paused' | 'blocked' | 'expired' | 'deleted'
+export type KeyKind = 'admin' | 'snapchat'
+
+export interface AdminAccess {
+  id: string
+  key: string
+  credits: number
+  devices: number
+  devicesUsed: number
+  status: Status
+  createdAt: string
+  lastUsedAt?: string
+}
+
+export interface SnapchatKey {
+  id: string
+  key: string
+  createdBy: string
+  durationDays: number
+  devices: number
+  devicesUsed: number
+  status: Status
+  expiresAt: string
+  createdAt: string
+  ip?: string
+  deviceId?: string
+}
+
+export interface AuditEvent {
+  id: string
+  action: string
+  actor: string
+  target: string
+  createdAt: string
+  result: 'success' | 'warning' | 'blocked'
+}
+
+export interface DashboardData {
+  admins: AdminAccess[]
+  licenses: SnapchatKey[]
+  events: AuditEvent[]
+  globalPaused: boolean
+  connected: boolean
+}
