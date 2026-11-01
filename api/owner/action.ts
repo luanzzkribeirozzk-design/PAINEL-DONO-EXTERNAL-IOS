@@ -96,6 +96,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return json(res, 200, { ok: true, count })
     }
 
+    if (action === 'generateLicenseBulk') {
+      const quantity = Math.min(100, Math.max(1, Number(payload.quantity ?? 1)))
+      const days = Math.max(1, Number(payload.days ?? 30))
+      const devices = Math.min(10, Math.max(1, Number(payload.devices ?? 1)))
+      const prefix = String(payload.prefix ?? 'EXTERNAL')
+      const refs: FirebaseFirestore.DocumentReference[] = []
+      const keys: string[] = []
+      for (let index = 0; index < quantity; index += 1) {
+        const rawKey = makeKey(prefix)
+        keys.push(rawKey)
+        refs.push(db.collection('licenses').doc())
+      }
+      const batch = db.batch()
+      refs.forEach((ref, index) => batch.set(ref, { keyHash: hashKey(keys[index]), keyPreview: `${keys[index].slice(0, 6)}•••${keys[index].slice(-4)}`, createdBy: actor.uid, createdByRole: 'owner', status: 'ready', credits: 0, durationDays: days, devices, devicesUsed: 0, activatedAt: null, expiresAt: null, pausedRemainingMs: null, createdAt: now, updatedAt: now }))
+      await batch.commit()
+      await audit(`licenses/${quantity}-bulk`)
+      return json(res, 200, { ok: true, ids: refs.map(ref => ref.id), keys })
+    }
+
     if (action === 'generateAdmin' || action === 'generateLicense') {
       const collection = action === 'generateAdmin' ? 'adminAccess' : 'licenses'
       const prefix = String(payload.prefix ?? (action === 'generateAdmin' ? 'KEY' : 'EXTERNAL'))
