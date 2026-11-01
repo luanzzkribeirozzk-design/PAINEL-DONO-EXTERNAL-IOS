@@ -53,6 +53,26 @@ function App() {
     } catch (error) { setData(previous); notify(`Operação não salva: ${error instanceof Error ? error.message : 'ERRO_BACKEND'}`) }
   }
   const userToken = async () => auth && user ? user.getIdToken() : ''
+  const handleModalSubmit = async (payload: { prefix: string; code: string; days: string; devices: string }) => {
+    const kind = modal
+    setModal(null)
+    try {
+      const action = kind === 'admin' ? 'generateAdmin' : 'generateLicense'
+      const body = kind === 'admin'
+        ? { prefix: payload.prefix, credits: Number(payload.days), days: 30, devices: Number(payload.devices) }
+        : { prefix: payload.prefix, days: Number(payload.days), devices: Number(payload.devices) }
+      const result = await runOwnerAction(await userToken(), action, body) as { id: string; key: string }
+      if (kind === 'license') {
+        setData(current => ({ ...current, licenses: [{ id: result.id, key: result.key, createdBy: 'Dono', durationDays: Number(payload.days), devices: Number(payload.devices), devicesUsed: 0, status: 'ready', expiresAt: null, createdAt: new Date().toISOString() }, ...current.licenses] }))
+        notify(`Key salva: ${result.key}`)
+      } else {
+        setData(current => ({ ...current, admins: [{ id: result.id, key: result.key, credits: Number(payload.days), devices: Number(payload.devices), devicesUsed: 0, status: 'active', createdAt: new Date().toISOString() }, ...current.admins] }))
+        notify(`Acesso Admin salvo: ${result.key}`)
+      }
+    } catch (error) {
+      notify(`Operação não salva: ${error instanceof Error ? error.message : 'ERRO_BACKEND'}`)
+    }
+  }
 
   if (loading) return <div className="loading-screen"><div className="brand-mark">LN</div><span>Carregando ambiente seguro…</span></div>
   if (!user) return <Login error={loginError} onLogin={async (email, password, remember) => { setLoginError(''); if (!auth) { setLoginError('Configure as variáveis VITE_FIREBASE_* na Vercel para ativar o login.'); return } try { await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence); await signInWithEmailAndPassword(auth, email, password) } catch { setLoginError('E-mail ou senha inválidos.') } }} />
@@ -82,7 +102,7 @@ function App() {
       </section>
     </main>
     {toast && <div className="toast"><Check size={17} />{toast}</div>}
-    {modal && <Modal type={modal} onClose={() => setModal(null)} onSubmit={(payload) => { setModal(null); notify(modal === 'admin' ? 'Acesso Admin preparado para gravação.' : 'Key preparada para gravação.'); if (modal === 'license') setData({ ...data, licenses: [{ id: `local-${Date.now()}`, key: `${payload.prefix}-${payload.code}`, createdBy: 'Dono', durationDays: Number(payload.days), devices: Number(payload.devices), devicesUsed: 0, status: 'active', expiresAt: new Date(Date.now() + Number(payload.days) * 86400000).toISOString(), createdAt: new Date().toISOString() }, ...data.licenses] }) }} />}
+    {modal && <Modal type={modal} onClose={() => setModal(null)} onSubmit={handleModalSubmit} />}
   </div>
 }
 
