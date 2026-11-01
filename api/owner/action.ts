@@ -13,7 +13,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const actor = await requireOwner(req)
     if (!db) throw new Error('BACKEND_NOT_CONFIGURED')
-    const { action, payload = {} } = req.body as { action?: string; payload?: Record<string, unknown> }
+    const parsedBody = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body && typeof req.body === 'object' ? req.body : {})
+    const { action, payload = {} } = parsedBody as { action?: string; payload?: Record<string, unknown> }
     const now = Timestamp.now()
     const audit = (target: string, result = 'success') => db!.collection('auditEvents').add({ action, actor: actor.uid, target, result, createdAt: FieldValue.serverTimestamp() })
     if (action === 'toggleGlobal') {
@@ -63,6 +64,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return json(res, 200, { ok: true })
   } catch (error) {
     const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
+    console.error('owner_action_failed', code)
     return json(res, code === 'FORBIDDEN' ? 403 : code === 'UNAUTHORIZED' ? 401 : 500, { error: code })
   }
 }

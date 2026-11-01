@@ -50,7 +50,7 @@ function App() {
     try {
       if (auth && user) await runOwnerAction(await userToken(), action, payload)
       notify('Operação registrada com sucesso.')
-    } catch { setData(previous); notify('Modo de demonstração: configure o backend para salvar esta operação.') }
+    } catch (error) { setData(previous); notify(`Operação não salva: ${error instanceof Error ? error.message : 'ERRO_BACKEND'}`) }
   }
   const userToken = async () => auth && user ? user.getIdToken() : ''
 

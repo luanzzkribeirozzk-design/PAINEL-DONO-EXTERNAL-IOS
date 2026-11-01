@@ -36,6 +36,9 @@ export async function runOwnerAction(token: string, action: string, payload: Rec
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, payload }),
   })
-  if (!response.ok) throw new Error('A operação não pôde ser concluída.')
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string }
+    throw new Error(body.error ?? `BACKEND_HTTP_${response.status}`)
+  }
   return response.json()
 }
