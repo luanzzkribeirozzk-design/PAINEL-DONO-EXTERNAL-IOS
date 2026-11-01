@@ -77,6 +77,25 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return json(res, 200, { ok: true, count: licenses.size })
     }
 
+    if (action === 'addDaysActiveOverOne') {
+      const amount = Math.max(1, Math.abs(Number(payload.days ?? payload.amount ?? 0)))
+      const licenses = await db.collection('licenses').where('status', '==', 'active').limit(500).get()
+      const batch = db.batch()
+      let count = 0
+      licenses.docs.forEach(item => {
+        const data = item.data()
+        if (Number(data.durationDays ?? 0) <= 1) return
+        count += 1
+        const delta = amount * 86400000
+        const updates: Record<string, unknown> = { durationDays: Number(data.durationDays ?? 1) + amount, updatedAt: now }
+        if (data.expiresAt?.toMillis) updates.expiresAt = Timestamp.fromMillis(data.expiresAt.toMillis() + delta)
+        batch.update(item.ref, updates)
+      })
+      if (count) await batch.commit()
+      await audit('licenses/active-over-one-day')
+      return json(res, 200, { ok: true, count })
+    }
+
     if (action === 'generateAdmin' || action === 'generateLicense') {
       const collection = action === 'generateAdmin' ? 'adminAccess' : 'licenses'
       const prefix = String(payload.prefix ?? (action === 'generateAdmin' ? 'KEY' : 'EXTERNAL'))
