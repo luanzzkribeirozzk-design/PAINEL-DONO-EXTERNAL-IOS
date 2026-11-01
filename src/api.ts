@@ -23,7 +23,10 @@ export function getMockData() { return structuredClone(mock) }
 
 export async function fetchDashboard(token: string): Promise<DashboardData> {
   const response = await fetch('/api/owner/dashboard', { headers: { Authorization: `Bearer ${token}` } })
-  if (!response.ok) throw new Error('Não foi possível carregar os dados do painel.')
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({})) as { error?: string }
+    throw new Error(body.error ?? `BACKEND_HTTP_${response.status}`)
+  }
   return response.json() as Promise<DashboardData>
 }
 

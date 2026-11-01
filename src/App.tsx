@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { browserLocalPersistence, browserSessionPersistence, onAuthStateChanged, setPersistence, signInWithEmailAndPassword, signOut, type User } from 'firebase/auth'
 import { Activity, Ban, BarChart3, Check, ChevronRight, CircleDollarSign, ClipboardList, Clock3, Copy, Database, KeyRound, LayoutDashboard, LogOut, Menu, Pause, Plus, RefreshCw, Search, Settings, ShieldCheck, Smartphone, Trash2, UserRound, Users, X, Zap } from 'lucide-react'
 import { auth, firebaseConfigured } from './firebase'
-import { fetchDashboard, getMockData, runOwnerAction } from './api'
+import { fetchDashboard, runOwnerAction } from './api'
 import type { AdminAccess, DashboardData, SnapchatKey, Status } from './types'
 
 type Page = 'overview' | 'admins' | 'licenses' | 'devices' | 'audit' | 'settings'
@@ -25,7 +25,8 @@ function App() {
   const [loginError, setLoginError] = useState('')
   const [page, setPage] = useState<Page>('overview')
   const [mobileNav, setMobileNav] = useState(false)
-  const [data, setData] = useState<DashboardData>(() => getMockData())
+  const [data, setData] = useState<DashboardData>({ connected: false, globalPaused: false, admins: [], licenses: [], events: [] })
+  const [backendError, setBackendError] = useState('')
   const [query, setQuery] = useState('')
   const [toast, setToast] = useState('')
   const [modal, setModal] = useState<'admin' | 'license' | null>(null)
@@ -37,7 +38,7 @@ function App() {
 
   useEffect(() => {
     if (!user || !auth) return
-    user.getIdToken().then(token => fetchDashboard(token).then(setData).catch(() => setToast('Firebase ainda não está conectado ao backend. Exibindo modo de configuração.')))
+    user.getIdToken().then(token => fetchDashboard(token).then(result => { setData(result); setBackendError('') }).catch(error => { setBackendError(error instanceof Error ? error.message : 'BACKEND_UNAVAILABLE'); setToast('Backend Firebase indisponível. Nenhum dado real foi carregado.') }))
   }, [user])
 
   const notify = (message: string) => { setToast(message); window.setTimeout(() => setToast(''), 3500) }
@@ -55,6 +56,7 @@ function App() {
 
   if (loading) return <div className="loading-screen"><div className="brand-mark">LN</div><span>Carregando ambiente seguro…</span></div>
   if (!user) return <Login error={loginError} onLogin={async (email, password, remember) => { setLoginError(''); if (!auth) { setLoginError('Configure as variáveis VITE_FIREBASE_* na Vercel para ativar o login.'); return } try { await setPersistence(auth, remember ? browserLocalPersistence : browserSessionPersistence); await signInWithEmailAndPassword(auth, email, password) } catch { setLoginError('E-mail ou senha inválidos.') } }} />
+  if (backendError) return <BackendError message={backendError} onRetry={() => window.location.reload()} onLogout={() => auth && signOut(auth)} />
 
   const activeAdmins = data.admins.filter(item => item.status === 'active').length
   const activeLicenses = data.licenses.filter(item => item.status === 'active').length
@@ -85,6 +87,8 @@ function App() {
 }
 
 function Login({ onLogin, error }: { onLogin: (email: string, password: string, remember: boolean) => void; error: string }) { const [email, setEmail] = useState(''); const [password, setPassword] = useState(''); const [remember, setRemember] = useState(true); return <div className="login-screen"><div className="login-art"><div className="orb orb-one" /><div className="orb orb-two" /><div className="login-brand"><div className="brand-mark large">LN</div><span>ZAYRON STORE</span></div><div className="login-quote"><p>“Controle total.<br /><b>Sem atalhos.</b>”</p><span>Painel privado de gestão</span></div></div><div className="login-card"><div className="login-mobile-brand"><div className="brand-mark">LN</div><b>LN XITER</b></div><p className="eyebrow">ÁREA RESTRITA</p><h1>Bem-vindo de volta.</h1><p className="muted">Entre com as credenciais do Dono para acessar o painel.</p><form onSubmit={e => { e.preventDefault(); onLogin(email, password, remember) }}><label>E-mail<input type="email" autoComplete="username" value={email} onChange={e => setEmail(e.target.value)} placeholder="dono@exemplo.com" required /></label><label>Senha<input type="password" autoComplete="current-password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••••••" required /></label><label className="remember-option"><input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} /> <span>Lembrar acesso neste dispositivo</span></label>{error && <div className="form-error">{error}</div>}<button className="primary-button full" type="submit"><ShieldCheck size={18} /> Acessar painel</button></form><small>A sessão é salva com segurança; a senha nunca é armazenada pelo site.</small></div></div> }
+
+function BackendError({ message, onRetry, onLogout }: { message: string; onRetry: () => void; onLogout: () => void }) { return <div className="login-screen"><div className="login-card backend-error-card"><div className="brand-mark">LN</div><p className="eyebrow">BACKEND NÃO DISPONÍVEL</p><h1>O painel está protegido.</h1><p className="muted">O site abriu, mas não conseguiu validar o Firebase Admin. Nenhum dado de demonstração será exibido nesta versão.</p><div className="form-error">Diagnóstico: {message}</div><button className="primary-button full" onClick={onRetry}><RefreshCw size={17} /> Tentar novamente</button><button className="outline-button full" onClick={onLogout}>Sair</button></div></div> }
 
 function InstallButton() { const [prompt, setPrompt] = useState<any>(null); const [ios, setIos] = useState(false); useEffect(() => { const standalone = (window.navigator as Navigator & { standalone?: boolean }).standalone; const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone; setIos(isIOS); const handler = (event: Event) => { event.preventDefault(); setPrompt(event) }; window.addEventListener('beforeinstallprompt', handler); return () => window.removeEventListener('beforeinstallprompt', handler) }, []); if (!prompt && !ios) return null; return <button className="install-button" onClick={async () => { if (ios) { window.alert('No iPhone: toque em Compartilhar e depois em Adicionar à Tela de Início.') } else if (prompt) { await prompt.prompt(); setPrompt(null) } }}><DownloadIcon /> Instalar</button> }
 function DownloadIcon() { return <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3v12m0 0 4-4m-4 4-4-4M5 21h14" /></svg> }
