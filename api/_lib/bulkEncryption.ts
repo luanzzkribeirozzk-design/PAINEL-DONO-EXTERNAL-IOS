@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto'
 
 function key() {
-  const session = process.env.ADMIN_SESSION_SECRET
+  const session = process.env.ADMIN_SESSION_SECRET ?? process.env.LICENSE_PEPPER
   const pepper = process.env.LICENSE_PEPPER
   if (!session || !pepper) throw new Error('BULK_ENCRYPTION_NOT_CONFIGURED')
   return createHash('sha256').update(`${session}:${pepper}:bulk-key-history`).digest()
@@ -24,3 +24,6 @@ export function decryptBulkKeys(value: string) {
   if (!Array.isArray(keys) || keys.some(value => typeof value !== 'string')) throw new Error('BULK_HISTORY_INVALID')
   return keys as string[]
 }
+
+export const encryptKey = (value: string) => encryptBulkKeys([value])
+export const decryptKey = (value: string) => decryptBulkKeys(value)[0]

@@ -1,7 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { Timestamp } from 'firebase-admin/firestore'
 import { db, FieldValue, json, requireOwner } from '../_lib/firebaseAdmin.js'
-import { decryptBulkKeys, encryptBulkKeys } from '../_lib/bulkEncryption.js'
+import { decryptBulkKeys, encryptBulkKeys, encryptKey } from '../_lib/bulkEncryption.js'
 
 type NextApiRequest = { method?: string; headers: Record<string, string | string[] | undefined>; body: unknown }
 type NextApiResponse = { setHeader: (name: string, value: string) => void; status: (code: number) => { json: (body: unknown) => void } }
@@ -111,7 +111,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         refs.push(db.collection('licenses').doc())
       }
       const batch = db.batch()
-      refs.forEach((ref, index) => batch.set(ref, { keyHash: hashKey(keys[index]), keyPreview: `${keys[index].slice(0, 6)}•••${keys[index].slice(-4)}`, createdBy: actor.uid, createdByRole: 'owner', status: 'ready', credits: 0, durationDays: days, devices, devicesUsed: 0, activatedAt: null, expiresAt: null, pausedRemainingMs: null, createdAt: now, updatedAt: now }))
+      refs.forEach((ref, index) => batch.set(ref, { keyHash: hashKey(keys[index]), encryptedKey: encryptKey(keys[index]), keyPreview: `${keys[index].slice(0, 6)}•••${keys[index].slice(-4)}`, createdBy: actor.uid, createdByRole: 'owner', status: 'ready', credits: 0, durationDays: days, devices, devicesUsed: 0, activatedAt: null, expiresAt: null, pausedRemainingMs: null, createdAt: now, updatedAt: now }))
       batch.set(bulkRef, { ownerType: 'owner', ownerId: actor.uid, encryptedKeys: encryptBulkKeys(keys), count: quantity, durationDays: days, devices, createdAt: now, createdBy: actor.uid })
       await batch.commit()
       await audit(`licenses/${quantity}-bulk`)
@@ -144,6 +144,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const isAdmin = action === 'generateAdmin'
       await ref.set({
         keyHash,
+        encryptedKey: encryptKey(rawKey),
         keyPreview: `${rawKey.slice(0, 6)}•••${rawKey.slice(-4)}`,
         createdBy: actor.uid,
         status: isAdmin ? 'active' : 'ready',
