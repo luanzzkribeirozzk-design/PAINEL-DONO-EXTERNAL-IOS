@@ -7,9 +7,9 @@ type NextApiResponse = { setHeader: (name: string, value: string) => void; statu
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return json(res, 405, { error: 'MÉTODO_NÃO_PERMITIDO' })
   try {
-    await requireOwner(req)
     if (!db) throw new Error('BACKEND_NOT_CONFIGURED')
-    const [adminsSnap, licensesSnap, eventsSnap, flagsSnap, bindingsSnap, blockedDevicesSnap, blockedIPsSnap] = await Promise.all([
+    const actor = await requireOwner(req)
+    const [adminsSnap, licensesSnap, eventsSnap, flagsSnap, bindingsSnap, blockedDevicesSnap, blockedIPsSnap, bulkSnap] = await Promise.all([
       db.collection('adminAccess').orderBy('createdAt', 'desc').limit(100).get(),
       db.collection('licenses').orderBy('createdAt', 'desc').limit(200).get(),
       db.collection('auditEvents').orderBy('createdAt', 'desc').limit(100).get(),
@@ -17,6 +17,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       db.collection('licenseDevices').limit(1000).get(),
       db.collection('blockedDevices').limit(1000).get(),
       db.collection('blockedIPs').limit(1000).get(),
+      db.collection('bulkKeyBatches').where('ownerType', '==', 'owner').where('ownerId', '==', actor.uid).limit(100).get().catch(() => ({ docs: [] as never[] })),
     ])
     const dateValue = (value: unknown) => value instanceof Timestamp ? value.toDate().toISOString() : value ?? null
     const bindingsByLicense = new Map<string, FirebaseFirestore.DocumentData[]>()
@@ -49,7 +50,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         deviceCount: bindings.length,
       }
     })
-    return json(res, 200, { connected: true, admins: clean(adminsSnap), licenses: clean(licensesSnap), events: clean(eventsSnap), globalPaused: Boolean(flagsSnap.data()?.globalPaused) })
+    const bulkHistory = bulkSnap.docs.map(doc => { const value = doc.data(); return { id: doc.id, count: Number(value.count ?? 0), durationDays: Number(value.durationDays ?? 0), devices: Number(value.devices ?? 1), createdAt: String(dateValue(value.createdAt) ?? '') } }).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    return json(res, 200, { connected: true, admins: clean(adminsSnap), licenses: clean(licensesSnap), events: clean(eventsSnap), bulkHistory, globalPaused: Boolean(flagsSnap.data()?.globalPaused) })
   } catch (error) {
     const code = error instanceof Error ? error.message : 'INTERNAL_ERROR'
     return json(res, code === 'FORBIDDEN' ? 403 : code === 'UNAUTHORIZED' ? 401 : 500, { error: code })

@@ -17,6 +17,7 @@ const mock: DashboardData = {
     { id: 'evt-02', action: 'Créditos adicionados', actor: 'Dono', target: 'Admin LN · +20', createdAt: '2026-10-31T20:42:00Z', result: 'success' },
     { id: 'evt-03', action: 'Acesso pausado', actor: 'Dono', target: 'KEY-R4D9K2V6T', createdAt: '2026-10-31T20:10:00Z', result: 'warning' },
   ],
+  bulkHistory: [],
 }
 
 export function getMockData() { return structuredClone(mock) }

@@ -41,10 +41,19 @@ export interface AuditEvent {
   result: 'success' | 'warning' | 'blocked'
 }
 
+export interface BulkHistoryEntry {
+  id: string
+  count: number
+  durationDays: number
+  devices: number
+  createdAt: string
+}
+
 export interface DashboardData {
   admins: AdminAccess[]
   licenses: SnapchatKey[]
   events: AuditEvent[]
+  bulkHistory: BulkHistoryEntry[]
   globalPaused: boolean
   connected: boolean
 }

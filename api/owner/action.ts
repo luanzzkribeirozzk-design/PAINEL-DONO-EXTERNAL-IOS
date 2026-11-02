@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { Timestamp } from 'firebase-admin/firestore'
 import { db, FieldValue, json, requireOwner } from '../_lib/firebaseAdmin.js'
+import { decryptBulkKeys, encryptBulkKeys } from '../_lib/bulkEncryption.js'
 
 type NextApiRequest = { method?: string; headers: Record<string, string | string[] | undefined>; body: unknown }
 type NextApiResponse = { setHeader: (name: string, value: string) => void; status: (code: number) => { json: (body: unknown) => void } }
@@ -103,6 +104,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       const prefix = String(payload.prefix ?? 'EXTERNAL')
       const refs: FirebaseFirestore.DocumentReference[] = []
       const keys: string[] = []
+      const bulkRef = db.collection('bulkKeyBatches').doc()
       for (let index = 0; index < quantity; index += 1) {
         const rawKey = makeKey(prefix)
         keys.push(rawKey)
@@ -110,9 +112,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       }
       const batch = db.batch()
       refs.forEach((ref, index) => batch.set(ref, { keyHash: hashKey(keys[index]), keyPreview: `${keys[index].slice(0, 6)}•••${keys[index].slice(-4)}`, createdBy: actor.uid, createdByRole: 'owner', status: 'ready', credits: 0, durationDays: days, devices, devicesUsed: 0, activatedAt: null, expiresAt: null, pausedRemainingMs: null, createdAt: now, updatedAt: now }))
+      batch.set(bulkRef, { ownerType: 'owner', ownerId: actor.uid, encryptedKeys: encryptBulkKeys(keys), count: quantity, durationDays: days, devices, createdAt: now, createdBy: actor.uid })
       await batch.commit()
       await audit(`licenses/${quantity}-bulk`)
       return json(res, 200, { ok: true, ids: refs.map(ref => ref.id), keys })
+    }
+
+    if (action === 'copyBulkBatch') {
+      const batchId = typeof payload.id === 'string' ? payload.id : ''
+      if (!batchId) return json(res, 400, { error: 'ID_OBRIGATÓRIO' })
+      const batch = await db.collection('bulkKeyBatches').doc(batchId).get()
+      if (!batch.exists || batch.data()?.ownerType !== 'owner' || batch.data()?.ownerId !== actor.uid) throw new Error('FORBIDDEN')
+      const keys = decryptBulkKeys(String(batch.data()?.encryptedKeys ?? ''))
+      await audit(batchId)
+      return json(res, 200, { ok: true, keys })
     }
 
     if (action === 'generateAdmin' || action === 'generateLicense') {
