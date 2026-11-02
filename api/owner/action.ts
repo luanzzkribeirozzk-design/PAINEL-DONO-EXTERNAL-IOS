@@ -161,6 +161,17 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return json(res, 200, { ok: true, key: rawKey, id: ref.id })
     }
 
+    if (action === 'blockDevice' || action === 'unblockDevice') {
+      const deviceId = String(payload.deviceId ?? '').trim().slice(0, 200)
+      const deviceHash = String(payload.deviceHash ?? (/^[a-f0-9]{64}$/i.test(deviceId) ? deviceId : deviceId ? createHash('sha256').update(`device:${deviceId}`).digest('hex') : ''))
+      if (!deviceHash) return json(res, 400, { error: 'DISPOSITIVO_OBRIGATÓRIO' })
+      const deviceRef = db.collection('blockedDevices').doc(deviceHash)
+      if (action === 'blockDevice') await deviceRef.set({ deviceHash, reason: 'Bloqueado pelo Dono', createdBy: actor.uid, createdAt: now, status: 'blocked' })
+      else await deviceRef.delete()
+      await audit(deviceHash)
+      return json(res, 200, { ok: true, deviceHash, blocked: action === 'blockDevice' })
+    }
+
     const id = String(payload.id ?? '')
     if (!id) return json(res, 400, { error: 'ID_OBRIGATÓRIO' })
     const adminActions = new Set(['pauseAdmin', 'unpauseAdmin', 'blockAdmin', 'unblockAdmin', 'deleteAdmin', 'addCredits', 'removeCredits'])
@@ -233,13 +244,6 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       await requireDocument(ref)
       const amount = Math.max(1, Math.abs(Number(payload.amount ?? 0)))
       await ref.update({ credits: FieldValue.increment((action === 'addCredits' ? 1 : -1) * amount), updatedAt: now })
-    } else if (action === 'blockDevice' || action === 'unblockDevice') {
-      const deviceId = String(payload.deviceId ?? '')
-      const deviceHash = String(payload.deviceHash ?? (deviceId ? createHash('sha256').update(`device:${deviceId}`).digest('hex') : ''))
-      if (!deviceHash) return json(res, 400, { error: 'DISPOSITIVO_OBRIGATÓRIO' })
-      const deviceRef = db.collection('blockedDevices').doc(deviceHash)
-      if (action === 'blockDevice') await deviceRef.set({ deviceHash, reason: 'Bloqueado pelo Dono', createdBy: actor.uid, createdAt: now, status: 'blocked' })
-      else await deviceRef.delete()
     } else if (action === 'blockIP' || action === 'unblockIP') {
       const ip = String(payload.ip ?? '')
       if (!ip) return json(res, 400, { error: 'IP_OBRIGATÓRIO' })
