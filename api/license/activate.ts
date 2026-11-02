@@ -57,7 +57,14 @@ export default async function handler(req: Request, res: Response) {
       if (!binding.exists) transaction.set(bindingRef, { licenseId: licenseRef.id, deviceHash: hashedDevice, devicePreview: `${rawDevice.slice(0, 4)}•••${rawDevice.slice(-4)}`, ip: ip || null, ipHash: hashedIP || null, firstUsedAt: now, lastUsedAt: now })
       else transaction.update(bindingRef, { lastUsedAt: now, ip: ip || null, ipHash: hashedIP || null })
       if (!binding.exists) transaction.update(licenseRef, { devicesUsed: FieldValue.increment(1) })
-      return { licenseId: licenseRef.id, status: updates.status ?? license.status, expiresAt: updates.expiresAt ?? license.expiresAt }
+      const activatedAt = updates.activatedAt ?? license.activatedAt
+      const expiresAt = updates.expiresAt ?? license.expiresAt
+      return {
+        licenseId: licenseRef.id,
+        status: updates.status ?? license.status,
+        activatedAt: activatedAt?.toMillis?.() ?? null,
+        expiresAt: expiresAt?.toMillis?.() ?? null,
+      }
     })
     return json(res, 200, { ok: true, ...result })
   } catch (error) {
