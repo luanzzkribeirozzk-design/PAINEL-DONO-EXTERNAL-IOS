@@ -27,3 +27,6 @@ export function decryptBulkKeys(value: string) {
 
 export const encryptKey = (value: string) => encryptBulkKeys([value])
 export const decryptKey = (value: string) => decryptBulkKeys(value)[0]
+export const decryptKeyOr = (value: string, fallback: string) => {
+  try { return decryptKey(value) } catch { return fallback }
+}

@@ -1,6 +1,6 @@
 import { db, json, requireOwner } from '../_lib/firebaseAdmin.js'
 import { Timestamp } from 'firebase-admin/firestore'
-import { decryptKey } from '../_lib/bulkEncryption.js'
+import { decryptKeyOr } from '../_lib/bulkEncryption.js'
 
 type NextApiRequest = { method?: string; headers: Record<string, string | string[] | undefined> }
 type NextApiResponse = { setHeader: (name: string, value: string) => void; status: (code: number) => { json: (body: unknown) => void } }
@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return {
         ...data,
         id: doc.id,
-        key: data.encryptedKey ? decryptKey(String(data.encryptedKey)) : data.key ?? data.keyPreview ?? '••••',
+        key: data.encryptedKey ? decryptKeyOr(String(data.encryptedKey), data.keyPreview ?? data.key ?? '••••') : data.key ?? data.keyPreview ?? '••••',
         createdAt: dateValue(data.createdAt),
         expiresAt: dateValue(data.expiresAt),
         activatedAt: dateValue(data.activatedAt),
