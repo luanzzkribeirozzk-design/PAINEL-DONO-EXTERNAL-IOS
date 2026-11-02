@@ -12,7 +12,7 @@ export interface AdminAccess {
   lastUsedAt?: string
 }
 
-export interface SnapchatKey {
+export interface EXTERNALKey {
   id: string
   key: string
   createdBy: string
@@ -51,7 +51,7 @@ export interface BulkHistoryEntry {
 
 export interface DashboardData {
   admins: AdminAccess[]
-  licenses: SnapchatKey[]
+  licenses: EXTERNALKey[]
   events: AuditEvent[]
   bulkHistory: BulkHistoryEntry[]
   globalPaused: boolean

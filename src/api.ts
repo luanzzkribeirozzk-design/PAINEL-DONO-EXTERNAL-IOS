@@ -13,7 +13,7 @@ const mock: DashboardData = {
     { id: 'lic-03', key: 'EXTERNAL-2J8V5N0RLA', createdBy: 'Admin LN', durationDays: 120, devices: 3, devicesUsed: 2, status: 'active', expiresAt: '2027-02-28T08:00:00Z', createdAt: '2026-10-31T19:40:00Z' },
   ],
   events: [
-    { id: 'evt-01', action: 'Key Snapchat gerada', actor: 'Dono', target: 'EXTERNAL-4FQ8A2L9ZC', createdAt: '2026-10-31T21:30:00Z', result: 'success' },
+    { id: 'evt-01', action: 'Key EXTERNAL gerada', actor: 'Dono', target: 'EXTERNAL-4FQ8A2L9ZC', createdAt: '2026-10-31T21:30:00Z', result: 'success' },
     { id: 'evt-02', action: 'Créditos adicionados', actor: 'Dono', target: 'Admin LN · +20', createdAt: '2026-10-31T20:42:00Z', result: 'success' },
     { id: 'evt-03', action: 'Acesso pausado', actor: 'Dono', target: 'KEY-R4D9K2V6T', createdAt: '2026-10-31T20:10:00Z', result: 'warning' },
   ],
