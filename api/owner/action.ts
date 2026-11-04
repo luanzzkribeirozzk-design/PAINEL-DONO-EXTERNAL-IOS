@@ -128,6 +128,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return json(res, 200, { ok: true, keys })
     }
 
+    if (action === 'updatePrefix') {
+      const prefix = String(payload.prefix ?? '').trim().toUpperCase()
+      if (!/^[A-Z][A-Z0-9_-]{0,15}$/.test(prefix)) {
+        return json(res, 400, { error: 'PREFIXO_INVALIDO' })
+      }
+      const admins = await db.collection('adminAccess').where('createdBy', '==', actor.uid).limit(100).get()
+      if (admins.empty) throw new Error('NOT_FOUND')
+      await Promise.all(admins.docs.map(admin => admin.ref.update({ prefix, updatedAt: now })))
+      await audit(`admin-prefix/${prefix}`)
+      return json(res, 200, { ok: true, prefix, updated: admins.size })
+    }
+
     if (action === 'generateAdmin' || action === 'generateLicense') {
       const collection = action === 'generateAdmin' ? 'adminAccess' : 'licenses'
       const prefix = String(payload.prefix ?? (action === 'generateAdmin' ? 'KEY' : 'EXTERNAL'))
