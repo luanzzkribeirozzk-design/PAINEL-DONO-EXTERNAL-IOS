@@ -186,7 +186,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
     const id = String(payload.id ?? '')
     if (!id) return json(res, 400, { error: 'ID_OBRIGATÓRIO' })
-    const adminActions = new Set(['pauseAdmin', 'unpauseAdmin', 'blockAdmin', 'unblockAdmin', 'deleteAdmin', 'addCredits', 'removeCredits'])
+    const adminActions = new Set(['pauseAdmin', 'unpauseAdmin', 'blockAdmin', 'unblockAdmin', 'deleteAdmin', 'addCredits', 'removeCredits', 'resetAdminDevice'])
     const collection = adminActions.has(action) ? 'adminAccess' : 'licenses'
     const ref = db.collection(collection).doc(id)
 
@@ -234,6 +234,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     } else if (action === 'resetDevice') {
       await requireDocument(ref)
       const bindings = await db.collection('licenseDevices').where('licenseId', '==', id).get()
+      const batch = db.batch()
+      bindings.docs.forEach(binding => batch.delete(binding.ref))
+      batch.update(ref, { devicesUsed: 0, deviceResetAt: now, updatedAt: now })
+      await batch.commit()
+    } else if (action === 'resetAdminDevice') {
+      await requireDocument(ref)
+      const bindings = await db.collection('adminAccessDevices').where('accessId', '==', id).get()
       const batch = db.batch()
       bindings.docs.forEach(binding => batch.delete(binding.ref))
       batch.update(ref, { devicesUsed: 0, deviceResetAt: now, updatedAt: now })

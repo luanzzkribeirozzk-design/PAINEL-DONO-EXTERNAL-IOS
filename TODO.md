@@ -14,6 +14,7 @@
 - [x] Permitir copiar a key completa do acesso Admin diretamente na tabela do Painel Dono, sem criar endpoint novo nem expor secrets.
 - [ ] Exibir lista separada e persistente, com o acesso mais recente primeiro e busca própria.
 - [ ] Adicionar e remover qualquer quantidade de créditos.
+- [x] Resetar os dispositivos de um acesso Admin, removendo somente os vínculos e permitindo novo login em outro dispositivo sem alterar key, créditos, status ou validade.
 - [ ] Pausar, retomar, bloquear, desbloquear e excluir acesso Admin.
 - [ ] Registrar geração, alteração de créditos, pausa, bloqueio, desbloqueio e exclusão na auditoria.
 
