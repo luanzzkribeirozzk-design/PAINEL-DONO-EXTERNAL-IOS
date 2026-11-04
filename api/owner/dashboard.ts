@@ -4,6 +4,13 @@ import { decryptKeyOr } from '../_lib/bulkEncryption.js'
 
 type NextApiRequest = { method?: string; headers: Record<string, string | string[] | undefined> }
 type NextApiResponse = { setHeader: (name: string, value: string) => void; status: (code: number) => { json: (body: unknown) => void } }
+const resolvedStatus = (data: FirebaseFirestore.DocumentData) => {
+  const status = String(data.status ?? 'ready')
+  const expiresAt = data.expiresAt?.toMillis?.()
+  if (status === 'active' && typeof expiresAt === 'number' && expiresAt <= Date.now()) return 'expired'
+  if (status === 'paused' && data.activatedAt && Number(data.pausedRemainingMs ?? 1) <= 0) return 'expired'
+  return status
+}
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== 'GET') return json(res, 405, { error: 'MÉTODO_NÃO_PERMITIDO' })
@@ -37,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       return {
         ...data,
         id: doc.id,
+        status: resolvedStatus(data),
         key: data.encryptedKey ? decryptKeyOr(String(data.encryptedKey), data.keyPreview ?? data.key ?? '••••') : data.key ?? data.keyPreview ?? '••••',
         createdAt: dateValue(data.createdAt),
         expiresAt: dateValue(data.expiresAt),

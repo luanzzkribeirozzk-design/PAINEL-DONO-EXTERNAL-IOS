@@ -11,6 +11,7 @@
 
 - [ ] Gerar acesso Admin com prefixo configurável, créditos iniciais e limite de dispositivos.
 - [ ] Mostrar a key completa somente no momento da criação e manter somente hash/preview persistente.
+- [x] Permitir copiar a key completa do acesso Admin diretamente na tabela do Painel Dono, sem criar endpoint novo nem expor secrets.
 - [ ] Exibir lista separada e persistente, com o acesso mais recente primeiro e busca própria.
 - [ ] Adicionar e remover qualquer quantidade de créditos.
 - [ ] Pausar, retomar, bloquear, desbloquear e excluir acesso Admin.
@@ -27,6 +28,7 @@
 - [ ] Pesquisar por key, status, Admin criador, IP e identificador de instalação.
 - [ ] Excluir definitivamente a key, remover seus vínculos e fazê-la desaparecer da lista, preservando apenas auditoria mínima.
 - [ ] Atualizar a lista real depois de cada ação e ordenar a criação mais recente primeiro.
+- [x] Derivar e exibir `Expirada` quando a validade terminou, mesmo antes de uma nova tentativa de uso.
 
 ## Dispositivos e IPs
 
